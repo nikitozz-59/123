@@ -10,11 +10,9 @@ class ClientProtocol(asyncio.Protocol):
     server: 'Server'
     transport: transports.Transport
 
-
     def __init__(self, server: 'Server'):
         self.server = server
         self.login = None
-
 
     def data_received(self, data: bytes):
         decoded = data.decode()
@@ -23,43 +21,19 @@ class ClientProtocol(asyncio.Protocol):
         if self.login is None:
             # login:User
             if decoded.startswith("login:"):
-                check_login = decoded.replace("login:", "").replace("\r\n", "")
-                for _ in self.server.clients:
-                    if check_login == _.login:
-                        self.transport.write(
-                            f"Логин {check_login} занят, попробуйте другой.".encode()
-
-                        )
-                        self.transport.close()
-
-                self.login = check_login
-
-                if len(self.server.history) == 0:
-                    self.transport.write(
-                        f"Привет, {self.login}!\n".encode()
-                    )
-                else:
-                    self.transport.write(
-                        f"Привет, {self.login}!\n{self.send_history()}\n".encode()
-                    )
-
+                self.login = decoded.replace("login:", "").replace("\r\n", "")
+                self.transport.write(
+                    f"Привет, {self.login}!".encode()
+                )
         else:
             self.send_message(decoded)
 
     def send_message(self, message):
         format_string = f"<{self.login}> {message}"
         encoded = format_string.encode()
-        self.server.history.append(format_string)
 
         for client in self.server.clients:
-            if client.login != self.login:
-                client.transport.write(encoded)
-
-    def send_history(self):
-        ind = 10 if len(self.server.history) > 10 else len(self.server.history)
-        for mess in self.server.history[-ind:]:
-            self.transport.write(f'{mess}\n'.encode())
-
+            client.transport.write(encoded)
 
     def connection_made(self, transport: transports.Transport):
         self.transport = transport
@@ -73,12 +47,9 @@ class ClientProtocol(asyncio.Protocol):
 
 class Server:
     clients: list
-    history: list
-
 
     def __init__(self):
         self.clients = []
-        self.history = []
 
     def create_protocol(self):
         return ClientProtocol(self)
